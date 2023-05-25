@@ -1,0 +1,18 @@
+struct MujocoState
+{
+    float q_abad[4];
+    float q_hip[4];
+    float q_knee[4];
+    float qd_abad[4];
+    float qd_hip[4];
+    float qd_knee[4];
+    float tau_abad[4];
+    float tau_hip[4];
+    float tau_knee[4];
+    float imu_acc[3];
+    float imu_omega[3];
+    float imu_quat[4];
+    
+    float body_position[3];
+    float body_velocity[3];
+}
