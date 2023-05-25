@@ -9,6 +9,7 @@ from ros_pub import JointInfoPub
 from ros_pub import BodyInfoPub
 import rospy
 from scipy.spatial.transform import Rotation as R
+from quadruped_controller import QuadrupedController
 
 
 class State:
@@ -34,6 +35,9 @@ class State:
         self.foot_pos_in_world = np.zeros(
             (3, 4))  #foot absolute position in world frame
         self.jacob_world = np.zeros((12, 18))
+        self.jacob_body=np.zeros((12,12))
+        self.contact_force=np.zeros(4)
+        
 
 
 class Command:
@@ -64,6 +68,7 @@ class MujocoSimulator:
         self.button_right = False
         self.last_mouse_posx = 0
         self.last_mouse_posy = 0
+        self.ctrl=QuadrupedController()
         # ******************setting for ros
         self.ros_thread = threading.Thread(target=self.publish2ros)
         rospy.init_node("mujoco_message", anonymous=True)
@@ -74,7 +79,7 @@ class MujocoSimulator:
     def publish2ros(self):
         while (True):
             begin = time.time()
-            self.updateState()
+            self.getMujocoState()
             # publish joint command to ros
             mujoco_time = self.data.time
             self.jCommandPub.appendData(self.cmd.qpos_des, self.cmd.qvel_des,
@@ -171,12 +176,29 @@ class MujocoSimulator:
         mj.mj_forward(self.model, self.data)
 
     # def controller(self, model, data):
-    def updateCmd(self):
+    def initController(self):
+        total_mass=sum(self.model.body_mass[1:16])
+        self.ctrl.setTotalBodyMass(total_mass)
+        print("robot total mass is ",total_mass)
+
+    def updateMujocoCmd(self):
         self.cmd.qpos_des = self.default_joint_pos
+        self.cmd.qpos_des = self.state.qpos
+        self.cmd.tau_ff=self.ctrl.torque.tolist()
+        self.cmd.kp=[0]*12
+        self.cmd.kd=[1]*12
+        a=1
 
     def controller(self, model, data):
-        self.updateCmd()
-        self.updateState()
+        self.getMujocoState()
+        self.ctrl.updateCounter()
+        self.ctrl.updateState(self.state)
+        # robot_state.update_output()
+        self.ctrl.updateUser()
+        self.ctrl.updatePlan()
+        self.ctrl.updateCommand()
+        # robot_state.check_termination()
+        self.updateMujocoCmd()
         cmd = self.cmd
         for i in range(12):
             self.data.ctrl[i] = cmd.kp[i] * (
@@ -190,12 +212,13 @@ class MujocoSimulator:
         glfw.set_cursor_pos_callback(self.window, self.mouse_move)
         glfw.set_mouse_button_callback(self.window, self.mouse_button)
         glfw.set_scroll_callback(self.window, self.mouse_scroll)
-        mj.set_mjcb_control(self.controller)
+        # mj.set_mjcb_control(self.controller)
         # mj.mj_forward(self.model, self.data)
         while not glfw.window_should_close(self.window):
             # mj.mj_forward(self.model, self.data)
             time_prev = self.data.time
             while self.data.time-time_prev<1.0/60.0:
+                self.controller(self.model,self.data)
                 mj.mj_step(self.model, self.data)
 
             viewport_width, viewport_height = glfw.get_framebuffer_size(
@@ -216,7 +239,7 @@ class MujocoSimulator:
             #     print(self.data.time-time_prev)
         glfw.terminate()
 
-    def updateState(self):
+    def getMujocoState(self):
         # imu
         self.state.imu_acc = self.data.sensordata[7:10]  # include gravity 9.81
         self.state.imu_omega = self.data.sensordata[4:7]
@@ -240,15 +263,18 @@ class MujocoSimulator:
         for i in range(4):
             self.state.foot_pos_in_body[:, i] = np.array(
                 self.data.sensordata[10 + 3 * i:13 + 3 * i])
-            self.state.foot_pos_in_world[:,
-                                         i] = rotR @ self.state.foot_pos_in_body[:,
-                                                                                 i] + self.state.trunk_pos
+            self.state.foot_pos_in_world[:,i] = rotR @ self.state.foot_pos_in_body[:,i] + self.state.trunk_pos
         jacp = np.zeros((3, self.model.nv))
+        rotR12_T=np.zeros((12,12))
         for i in range(4):
-            mj.mj_jacSite(self.model, self.data, jacp, None,
-                          i + 1)  #i=0 means imu site
+            mj.mj_jacSite(self.model, self.data, jacp, None,i + 1)  #i=0 means imu site
             self.state.jacob_world[3 * i:3 + 3 * i, :] = jacp.copy()
+            rotR12_T[3*i:3*i+3,3*i:3*i+3]=rotR.T
+        self.state.jacob_body=rotR12_T@self.state.jacob_world[:,6:19]
         # print(jacp)
+        #contact force
+        self.state.contact_force=np.array(self.data.sensordata[22:26])
+        # void mj_contactForce(const mjModel* m, const mjData* d, int id, mjtNum result[6]);
 
     def keyboard(self, window, key, scancode, act, mods):
         if (act == glfw.PRESS and key == glfw.KEY_R):
@@ -304,4 +330,5 @@ if __name__ == '__main__':
     model_xml = "prototype_model/scene.xml"
     sim = MujocoSimulator(model_xml)
     sim.initSimulator()
+    sim.initController()
     sim.runSimulation()

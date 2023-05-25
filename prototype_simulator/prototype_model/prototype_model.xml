@@ -26,7 +26,7 @@
               condim="6" friction="0.8 0.02 0.01"/>
         </default>
         <default class="foot_site">
-          <site size="0.01" pos="0 0 -0.2"/>
+          <site size="0.02" pos="0 0 -0.2"/>
         </default>
       </default>
     </default>
@@ -127,6 +127,10 @@
     <framepos name="fl_foot" objtype="site" objname="fl_site" reftype="site" refname="imu"/>
     <framepos name="rr_foot" objtype="site" objname="rr_site" reftype="site" refname="imu"/>
     <framepos name="rl_foot" objtype="site" objname="rl_site" reftype="site" refname="imu"/>
+    <touch name="fr_touch" site="fr_site"/>
+    <touch name="fl_touch" site="fl_site"/>
+    <touch name="rr_touch" site="rr_site"/>
+    <touch name="rl_touch" site="rl_site"/>
   </sensor>
 
 </mujoco>
