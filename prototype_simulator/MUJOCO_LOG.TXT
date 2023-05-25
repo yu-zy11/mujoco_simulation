@@ -10,3 +10,27 @@ ERROR: Python exception raised
 Thu May 25 17:40:04 2023
 ERROR: Python exception raised
 
+Thu May 25 22:12:57 2023
+WARNING: Nan, Inf or huge value in CTRL at ACTUATOR 4. The simulation is unstable. Time = 3.8860.
+
+Thu May 25 22:53:40 2023
+WARNING: Nan, Inf or huge value in CTRL at ACTUATOR 1. The simulation is unstable. Time = 18.3040.
+
+Thu May 25 22:56:39 2023
+WARNING: Nan, Inf or huge value in CTRL at ACTUATOR 1. The simulation is unstable. Time = 15.6440.
+
+Thu May 25 23:09:03 2023
+WARNING: Nan, Inf or huge value in CTRL at ACTUATOR 1. The simulation is unstable. Time = 5.1150.
+
+Thu May 25 23:13:31 2023
+WARNING: Nan, Inf or huge value in CTRL at ACTUATOR 4. The simulation is unstable. Time = 4.9930.
+
+Thu May 25 23:16:14 2023
+WARNING: Nan, Inf or huge value in CTRL at ACTUATOR 1. The simulation is unstable. Time = 5.0440.
+
+Thu May 25 23:16:48 2023
+WARNING: Nan, Inf or huge value in CTRL at ACTUATOR 1. The simulation is unstable. Time = 11.6800.
+
+Thu May 25 23:25:10 2023
+WARNING: Nan, Inf or huge value in CTRL at ACTUATOR 1. The simulation is unstable. Time = 11.9620.
+

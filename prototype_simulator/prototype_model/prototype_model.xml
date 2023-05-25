@@ -1,6 +1,6 @@
 <mujoco model="prototype_model">
   <compiler angle="radian" assetdir="assets" texturedir="assets" discardvisual="false" autolimits="true" eulerseq="zyx"/>
-  <option timestep="0.001" impratio="1" noslip_iterations="100"/>
+  <option timestep="0.0005" impratio="1" noslip_iterations="100"/>
 
   <visual >
     <rgba contactpoint="0.1 0.8 0.2 1" contactforce="0.7 0.9 0.9 1"/>
@@ -132,5 +132,8 @@
     <touch name="rr_touch" site="rr_site"/>
     <touch name="rl_touch" site="rl_site"/>
   </sensor>
+  <keyframe>
+    <key name="home" qpos="0 0 0.5 1 0 0 0 0 -0.6 1.2 0 -0.6 1.2 0 -0.6 1.2 0 -0.6 1.2"/>
+  </keyframe>
 
 </mujoco>

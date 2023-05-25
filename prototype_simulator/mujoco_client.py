@@ -41,7 +41,6 @@ class State:
 
 
 class Command:
-
     def __init__(self):
         #default joint seq is FR:0-2 FL:3-5 RR:6-8 RL:9-11
         self.qpos_des = [0] * 12
@@ -49,19 +48,23 @@ class Command:
         self.kp = [100] * 12
         self.kd = [2] * 12
         self.tau_ff = [0] * 12
+class GamepadComamnd:
+    def __init__(self):
+        self.vel_cmd=[0]*3
+        self.omega_cmd=[0]*3
+        self.body_height=0
+        self.gait_type=0
 
 
 class MujocoSimulator:
-
     def __init__(self, model_file) -> None:
         self.state = State()
         self.cmd = Command()
+        self.gamepad_cmd=GamepadComamnd()
         self.xml_path = model_file
         hip = -0.732
         knee = 1.4
-        self.default_joint_pos = [
-            0, hip, knee, 0, hip, knee, 0, hip, knee, 0, hip, knee
-        ]
+        self.default_joint_pos = [0, hip, knee, 0, hip, knee, 0, hip, knee, 0, hip, knee  ]
         self.print_camera_config = 1
         self.button_left = False
         self.button_middle = False
@@ -107,6 +110,8 @@ class MujocoSimulator:
 
     def resetSim(self):
         mj.mj_resetData(self.model, self.data)
+        self.data.qpos[0:7]=[0, 0, 0.5, 1, 0, 0, 0]
+        self.data.qpos[7:19]=self.default_joint_pos
         mj.mj_forward(self.model, self.data)
         mj.mj_step(self.model, self.data)
 
@@ -148,16 +153,14 @@ class MujocoSimulator:
         self.data.qpos[7:19] = self.default_joint_pos.copy()
         # Init GLFW library, create window, make OpenGL context current, request v-sync
         glfw.init()
-        self.window = glfw.create_window(1000, 900, "prototype_simulator",
-                                         None, None)
+        self.window = glfw.create_window(1000, 900, "prototype_simulator",None, None)
         glfw.make_context_current(self.window)
         glfw.swap_interval(1)
         # initialize visualization data structures
         mj.mjv_defaultCamera(self.cam)
         mj.mjv_defaultOption(self.opt)
         self.scene = mj.MjvScene(self.model, maxgeom=10000)
-        self.context = mj.MjrContext(self.model,
-                                     mj.mjtFontScale.mjFONTSCALE_150.value)
+        self.context = mj.MjrContext(self.model,mj.mjtFontScale.mjFONTSCALE_150.value)
         # print camera configuration (help to initialize the view)
         if (self.print_camera_config == 1):
             print('cam.azimuth =', self.cam.azimuth, ';', 'cam.elevation =',
@@ -194,7 +197,7 @@ class MujocoSimulator:
         self.ctrl.updateCounter()
         self.ctrl.updateState(self.state)
         # robot_state.update_output()
-        self.ctrl.updateUser()
+        self.ctrl.updateUser(self.gamepad_cmd)
         self.ctrl.updatePlan()
         self.ctrl.updateCommand()
         # robot_state.check_termination()
@@ -215,7 +218,6 @@ class MujocoSimulator:
         # mj.set_mjcb_control(self.controller)
         # mj.mj_forward(self.model, self.data)
         while not glfw.window_should_close(self.window):
-            # mj.mj_forward(self.model, self.data)
             time_prev = self.data.time
             while self.data.time-time_prev<1.0/60.0:
                 self.controller(self.model,self.data)
@@ -279,16 +281,29 @@ class MujocoSimulator:
     def keyboard(self, window, key, scancode, act, mods):
         if (act == glfw.PRESS and key == glfw.KEY_R):
             self.resetSim()
-        if act == glfw.PRESS and key == glfw.KEY_S:
-            print('Pressed key s')
+            self.gamepad_cmd.gait_type=0
         if act == glfw.PRESS and key == glfw.KEY_UP:
-            vel_z += 2
+            self.gamepad_cmd.vel_cmd[0]+=0.1
         if act == glfw.PRESS and key == glfw.KEY_DOWN:
-            vel_z -= 2
+            self.gamepad_cmd.vel_cmd[0]-=0.1
         if act == glfw.PRESS and key == glfw.KEY_LEFT:
-            vel_x -= 2
+            self.gamepad_cmd.omega_cmd[2]+=0.1
         if act == glfw.PRESS and key == glfw.KEY_RIGHT:
-            vel_x += 2
+            self.gamepad_cmd.omega_cmd[2]-=0.1
+        if act==glfw.PRESS and key==glfw.KEY_W:
+            self.gamepad_cmd.body_height+=0.05
+        if act==glfw.PRESS and key==glfw.KEY_S:
+            self.gamepad_cmd.body_height-=0.05
+        if act==glfw.PRESS and key==glfw.KEY_0:
+            self.gamepad_cmd.gait_type=0
+        if act==glfw.PRESS and key==glfw.KEY_1:
+            self.gamepad_cmd.gait_type=1
+        if act==glfw.PRESS and key==glfw.KEY_2:
+            self.gamepad_cmd.gait_type=2
+        if act==glfw.PRESS and key==glfw.KEY_3:
+            self.gamepad_cmd.gait_type=3
+        # if act==glfw.PRESS and key==glfw.KEY_4:
+        #     self.gamepad_cmd.gait_type=4
 
     # update button state
 

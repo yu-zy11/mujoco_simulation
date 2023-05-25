@@ -1,10 +1,8 @@
 from collections import deque
-from isaacgym import gymapi, gymutil, gymtorch
 from scipy.spatial.transform import Rotation as R
 import casadi as ca
 import numpy as np
 import sys, os
-import torch
 import time
 
 
@@ -111,13 +109,13 @@ class QuadrupedController:
         self.terrain_pitch = 0
         self.terrain_height = 0
         self.contact_pos_avg = np.zeros(3)
-        count_per_cycle=10
-        self.kd_root_pos = np.array([0.3, 0.3, 0.0]) * count_per_cycle / 120
+        self.kd_root_pos = np.array([0.3, 0.3, 0.0])
+        self.gamepad_cmd=[]
 
         # user
         self.gait_type = 0  # stand: 0, walk: 1, trot: 2, pace: 3
         self.gait_type_last = 0
-        self.gait_stop_height = 0.3
+        self.gait_stop_height = 0.15
         self.use_joy = True
         self.root_pos_target = np.zeros(3)
         self.root_euler_target = np.zeros(3)
@@ -155,10 +153,10 @@ class QuadrupedController:
         # command
         self.qp = QP()
         self.torque = np.zeros(12)
-        self.default_foot_pos = np.array([[+0.25, +0.12, -0.3],
-                             [+0.25, -0.12, -0.3],
-                             [-0.25, +0.12, -0.3],
-                             [-0.25, -0.12, -0.3]])
+        self.default_foot_pos = np.array([[+0.25, -0.15, -0.3],
+                             [+0.25, 0.15, -0.3],
+                             [-0.25, -0.15, -0.3],
+                             [-0.25, 0.15, -0.3]])
         self.foot_pos_start = self.default_foot_pos.copy()
         self.foot_pos_end = self.default_foot_pos.copy()
         self.kp_kin = np.array([[1000.0, 1000.0, 5000.0],
@@ -195,7 +193,6 @@ class QuadrupedController:
         r = R.from_quat(self.root_quat)#xyzw
         self.root_euler = r.as_euler('xyz')
         self.rot_mat = r.as_matrix()
-        test=self.rot_mat-state.rotR
         r = R.from_euler('z', self.root_euler[2])
         self.rot_mat_z = r.as_matrix()
 
@@ -233,50 +230,18 @@ class QuadrupedController:
         self.terrain_pitch = (1 - terrain_filter_rate) * self.terrain_pitch + terrain_filter_rate * p
         self.terrain_height = (1 - terrain_filter_rate) * self.terrain_height + terrain_filter_rate * h
 
-    def update_output(self):
-        joint_torque = self.torque - self.joint_vel * dof_props["damping"]
-
-        for i in range(12):  # 0-11
-            visual_ros.append_data(self.joint_pos[i])
-        for i in range(12):  # 12-23
-            visual_ros.append_data(self.joint_vel[i])
-        for i in range(12):  # 24-35
-            visual_ros.append_data(joint_torque[i])
-        for i in range(3):  # 36-38
-            visual_ros.append_data(self.root_lin_vel[i])
-        for i in range(3):  # 39-41
-            visual_ros.append_data(self.root_pos[i])
-        for i in range(12):  # 42-53
-            visual_ros.append_data(self.grf_last[i])
-        
-        quick_stop_ros.append_data(self.quick_stop_) #0
-        quick_stop_ros.append_data(self.gait_type) #1
-        for i in range(3):#2-4
-                quick_stop_ros.append_data(self.root_pos_target[i]-self.root_des[i]) 
-        for i in range(3):#5-7
-                quick_stop_ros.append_data(self.root_pos[i]-self.root_des[i])            
-        for i in range(3):#8-10
-            quick_stop_ros.append_data(self.root_lin_vel_target[i])
-        for i in range(3):#11-13
-            quick_stop_ros.append_data(self.root_acc_quick_stop[i])
-        quick_stop_ros.append_data(self.time) #14
-        for i in range(4):#self.foot_pos_rel_target
-             quick_stop_ros.append_data(self.foot_pos_rel_target[i,0])
-             quick_stop_ros.append_data(self.foot_pos_rel_target[i,1])
-             quick_stop_ros.append_data(self.foot_pos_rel_target[i,2])
-
-
-    def updateUser(self):
+    def updateUser(self,cmd):
+        self.gamepad_cmd=cmd
         if self.use_joy:
-            self.root_lin_vel_target[0:2] = self.joy_value[0:2]
-            self.root_ang_vel_target[:] = self.joy_value[3:6]
-            if self.joy_value[6] <= 3:
-                if self.default_root_state[2] + self.joy_value[2] < self.gait_stop_height:
+            self.root_lin_vel_target[0] = cmd.vel_cmd[0]
+            self.root_ang_vel_target[2] = cmd.omega_cmd[2]
+            if cmd.gait_type <= 3:
+                if self.default_root_state[2] + cmd.body_height < self.gait_stop_height:
                     self.gait_type = 0
                     self.root_lin_vel_target[:] = 0
                     self.root_ang_vel_target[:] = 0
                 else:
-                    self.gait_type = self.joy_value[6]
+                    self.gait_type = cmd.gait_type
             else:
                 vel_total = np.linalg.norm(self.root_lin_vel_target) + np.linalg.norm(self.root_ang_vel_target)
                 if vel_total < 1e-6:
@@ -290,7 +255,7 @@ class QuadrupedController:
             self.root_lin_vel_target[:] = [0.0, 0.0, 0.0]
             self.root_ang_vel_target[:] = [0.0, 0.0, 0.0]
             self.gait_type = 0
-        self.root_pos_target = self.default_root_state[0:3] + self.com_offset + np.array([0.0, 0.0, self.joy_value[2]])
+        self.root_pos_target = self.default_root_state[0:3] + self.com_offset + np.array([0.0, 0.0, self.gamepad_cmd.body_height])
         self.root_euler_target[:] = self.default_root_state[3:6]
 
         o = np.average(self.contact_pos_world, axis=0)
@@ -306,8 +271,6 @@ class QuadrupedController:
                 (self.gait_type != self.gait_type_last and np.all(self.foot_state != FOOT_SW)):
             self.foot_counter_st = np.zeros(4, dtype=float)
             self.foot_counter_sw = np.zeros(4, dtype=float)
-            self.foot_counter_st_speed[:] = 2
-            self.foot_counter_sw_speed[:] = 2
             # TODO: add walking gait
             if self.gait_type == 0:
                 self.foot_to_sw = []
@@ -444,7 +407,7 @@ class QuadrupedController:
         self.foot_pos_rel_target[:, 0] += delta_foot_x
         self.foot_pos_rel_target[:, 1] += delta_foot_y
         self.foot_pos_rel_target[:, 2] += delta_foot_z
-        self.foot_pos_rel_target[:, 2] += -self.joy_value[2]
+        # self.foot_pos_rel_target[:, 2] += -self.joy_value[2]
         self.foot_pos_abs_target = self.foot_pos_rel_target @ self.rot_mat_z.T
         self.foot_pos_world_target =self.foot_pos_abs_target+ self.root_pos
 
@@ -468,6 +431,7 @@ class QuadrupedController:
                 self.foot_pos_end[i] = foot_pos_final[i]
         foot_pos_target = self._get_bezier_curve(self.foot_pos_start, foot_pos_final, bezier_time)
         # foot_pos_target = foot_pos_final
+        # print("bezier_time",bezier_time)
 
         foot_pos_error = foot_pos_target - foot_pos_cur
         foot_force_kin = self.kp_kin * foot_pos_error
@@ -541,7 +505,7 @@ class QuadrupedController:
             elif self.foot_state[i] == FOOT_SW:
                 self.foot_counter_sw[i] += 1#self.foot_counter_sw_speed[i]
         global count_per_cycle, count_per_phase
-        count_per_cycle = 300 #0.3/0.01
+        count_per_cycle = 500 #0.3/0.01
         count_per_phase = count_per_cycle / 2
 
     def check_termination(self):
@@ -719,232 +683,3 @@ def bezier_curve(alpha, param):
         y += coefficient[i] * np.power(alpha, i) * np.power(1 - alpha, degree - i) * param[i]
     return y
 
-
-
-# default state
-# sim_dt =0.002
-# count_per_cycle = 60
-# count_per_phase = count_per_cycle / 2
-
-# init_root_state = np.zeros(13)
-# init_root_state[0:3] = [0.0, 0.0, 0.6]
-# init_root_state[3:7] = [0.0, 0.0, 0.0, 1.0]
-# init_root_state[7:10] = [0.0, 0.0, 0.0]
-
-# com_offset = np.array([0.00, 0, 0.0])
-
-# default_root_state = init_root_state.copy()
-# default_root_state[0:3] = [0.0, 0.0, 0.45]
-
-# default_dof_position = np.array([0.0, -0.6, 1.2,
-#                                  0.0, -0.6, 1.2,
-#                                  0.0, -0.6, 1.2,
-#                                  0.0, -0.6, 1.2])
-
-# default_dof_velocity = np.zeros(12)
-
-# default_foot_pos = np.array([[+0.25, +0.12, -0.3],
-#                              [+0.25, -0.12, -0.3],
-#                              [-0.25, +0.12, -0.3],
-#                              [-0.25, -0.12, -0.3]])
-# default_foot_pos[:] += com_offset
-
-# init_terrain_state = np.zeros(13)
-# init_terrain_state[0:3] = [0.0, 0.0, -10.05]
-# init_terrain_state[3:7] = [0.0, 0.0, 0.0, 1.0]
-
-# calf_name = ["FR_calf", "FL_calf", "RR_calf", "RL_calf"]
-# calf_index = [rigid_body_dict[name] for name in calf_name]
-
-# foot_name = ["FR_foot", "FL_foot", "RR_foot", "RL_foot"]
-# foot_index = [rigid_body_dict[name] for name in foot_name]
-# foot_radius = 0.0265
-
-# rigid_body_names = gym.get_actor_rigid_body_names(env, actor_handle)
-# for i in range(len(rigid_body_props)):
-#     rigid_body_props[i].mass *= 1
-#     print(rigid_body_names[i], "\tmass = ", rigid_body_props[i].mass, "\tcom = ", rigid_body_props[i].com)
-
-# total_mass = np.sum([rigid_body_props[i].mass for i in range(len(rigid_body_props))])
-# print("total mass = ", total_mass)
-# gym.set_actor_rigid_body_properties(env, actor_handle, rigid_body_props)
-
-# contact_force_low = 20
-# contact_force_high = 50
-
-# FOOT_ST = 0
-# FOOT_STD = 1
-# FOOT_SW = 2
-
-# walk_sequence_forward = [[0], [3], [1], [2]]
-# walk_sequence_backward = [[0], [2], [1], [3]]
-# walk_sequence_left = [[0], [3], [2], [1]]
-# walk_sequence_right = [[0], [1], [2], [3]]
-
-# terrain_filter_rate = 10.0 * sim_dt
-# root_height_filter_rate = 1.0 * sim_dt
-
-# color_red = (1, 0, 0)
-# color_green = (0, 1, 0)
-# color_blue = (0, 0, 1)
-# color_grey = (0.2, 0.2, 0.2)
-# sphere_red = gymutil.WireframeSphereGeometry(foot_radius, 12, 12, gymapi.Transform(), color=color_red)
-# sphere_green = gymutil.WireframeSphereGeometry(foot_radius, 12, 12, gymapi.Transform(), color=color_green)
-# sphere_blue = gymutil.WireframeSphereGeometry(foot_radius, 12, 12, gymapi.Transform(), color=color_blue)
-# sphere_grey = gymutil.WireframeSphereGeometry(foot_radius, 12, 12, gymapi.Transform(), color=color_grey)
-
-# # init robot state
-# robot_state = RobotState()
-# visual_ros = VisualRos(ros_topic)
-# quick_stop_ros = VisualRos("quick_stop")
-
-# # ring buffer
-# joint_pos_buffer = deque(maxlen=480)
-# joint_vel_buffer = deque(maxlen=480)
-# joint_torque_buffer = deque(maxlen=480)
-
-# # init tensor
-# root_state_tensor = gym.acquire_actor_root_state_tensor(sim)
-# dof_state_tensor = gym.acquire_dof_state_tensor(sim)
-# rigid_body_state_tensor = gym.acquire_rigid_body_state_tensor(sim)
-# jacobian_tensor = gym.acquire_jacobian_tensor(sim, asset_name)
-# net_contact_force_tensor = gym.acquire_net_contact_force_tensor(sim)
-
-# root_state = gymtorch.wrap_tensor(root_state_tensor)
-# dof_state = gymtorch.wrap_tensor(dof_state_tensor)
-# rigid_body_state = gymtorch.wrap_tensor(rigid_body_state_tensor)
-# jacobian = gymtorch.wrap_tensor(jacobian_tensor)
-# net_contact_force = gymtorch.wrap_tensor(net_contact_force_tensor)
-
-# dof_position = dof_state[:, 0]
-# dof_velocity = dof_state[:, 1]
-
-# # init attractor
-# attractor_active = False
-# attractor_properties = gymapi.AttractorProperties()
-# attractor_properties.rigid_handle = gym.get_actor_root_rigid_body_handle(env, actor_handle)
-# attractor_properties.target = gymapi.Transform(gymapi.Vec3(*init_root_state[0:3]),
-#                                                gymapi.Quat(*init_root_state[3:7]))
-# attractor_properties.stiffness = 1e6 if attractor_active else 0
-# attractor_properties.damping = 1e4 if attractor_active else 0
-# attractor_properties.axes = gymapi.AXIS_ALL
-# attractor_handle = gym.create_rigid_body_attractor(env, attractor_properties)
-
-# # reset
-# state_zero_torque = False
-# robot_state.reset()
-# robot_state.body_height=-np.mean(default_foot_pos[:,2])
-# # move viewer window
-# # window_jumper.main()
-
-# # simulate
-# while not gym.query_viewer_has_closed(viewer):
-#     begin_time=time.time()
-#     # step the physics
-#     gym.simulate(sim)
-#     gym.fetch_results(sim, True)
-    
-#     cam_pos.x = 0.0 + robot_state.root_pos[0]
-#     cam_pos.y = 1.0 + robot_state.root_pos[1]
-#     cam_target.x = 0.0 + robot_state.root_pos[0]
-#     cam_target.y = 0.0 + robot_state.root_pos[1]
-#     gym.viewer_camera_look_at(viewer, None, cam_pos, cam_target)
-
-#     # refresh tensor
-#     gym.refresh_actor_root_state_tensor(sim)
-#     gym.refresh_dof_state_tensor(sim)
-#     gym.refresh_rigid_body_state_tensor(sim)
-#     gym.refresh_jacobian_tensors(sim)
-#     gym.refresh_net_contact_force_tensor(sim)
-
-#     # feedback control
-#     robot_state.updateState()
-#     robot_state.update_output()
-#     robot_state.updateUser()
-#     robot_state.updatePlan()
-#     robot_state.updateCommand()
-#     robot_state.updateCounter()
-#     robot_state.check_termination()
-#     visual_ros.publish_data()
-#     quick_stop_ros.publish_data()
-
-#     # check for keyboard events
-#     for evt in gym.query_viewer_action_events(viewer):
-#         if evt.action == "RESET" and evt.value > 0:
-#             robot_state.reset()
-#         elif evt.action == "ESCAPE" and evt.value > 0:
-#             sys.exit()
-#         elif evt.action == "HOLD" and evt.value > 0:
-#             attractor_active ^= True
-#             attractor_properties = gym.get_attractor_properties(env, attractor_handle)
-#             attractor_properties.stiffness = 1e6 if attractor_active else 0
-#             attractor_properties.damping = 1e4 if attractor_active else 0
-#             attractor_properties.axes = gymapi.AXIS_ALL
-#             gym.set_attractor_properties(env, attractor_handle, attractor_properties)
-#         elif evt.action == "PERTURB" and evt.value > 0:
-#             gym.apply_body_force_at_pos(env, rigid_body_dict["base"], gymapi.Vec3(0, 1000, 0))
-#             print("apply side push")
-#         elif evt.action == "STOP" and evt.value > 0:
-#             robot_state.joy_value[0:6] = 0
-#             print("joy_value = {}".format(robot_state.joy_value))
-#         elif evt.action == "ZERO_TORQUE" and evt.value > 0:
-#             state_zero_torque ^= True
-#         elif evt.action == "TURN_LEFT" and evt.value > 0:
-#             robot_state.joy_value[5] = np.minimum(2.0, robot_state.joy_value[5] + 0.1)
-#             print("joy_value = {}".format(robot_state.joy_value))
-#         elif evt.action == "UP" and evt.value > 0:
-#             robot_state.joy_value[0] = np.minimum(2.0, robot_state.joy_value[0] + 0.1)
-#             print("joy_value = {}".format(robot_state.joy_value))
-#         elif evt.action == "DOWN" and evt.value > 0:
-#             robot_state.joy_value[0] = np.maximum(-1.0, robot_state.joy_value[0] - 0.1)
-#             print("joy_value = {}".format(robot_state.joy_value))
-#         elif evt.action == "TURN_RIGHT" and evt.value > 0:
-#             robot_state.joy_value[5] = np.maximum(-2.0, robot_state.joy_value[5] - 0.1)
-#             print("joy_value = {}".format(robot_state.joy_value))
-#         elif evt.action == "LEFT" and evt.value > 0:
-#             robot_state.joy_value[1] = np.minimum(0.5, robot_state.joy_value[1] + 0.1)
-#             print("joy_value = {}".format(robot_state.joy_value))
-#         elif evt.action == "RIGHT" and evt.value > 0:
-#             robot_state.joy_value[1] = np.maximum(-0.5, robot_state.joy_value[1] - 0.1)
-#             print("joy_value = {}".format(robot_state.joy_value))
-#         elif evt.action == "STAND" and evt.value > 0:
-#             robot_state.joy_value[2] = np.minimum(0.1, robot_state.joy_value[2] + 0.02)
-#         elif evt.action == "SIT" and evt.value > 0:
-#             robot_state.joy_value[2] = np.maximum(-0.4, robot_state.joy_value[2] - 0.02)
-#         elif evt.action == "0" and evt.value > 0:
-#             robot_state.joy_value[6] = 0
-#         elif evt.action == "1" and evt.value > 0:
-#             robot_state.joy_value[6] = 1
-#         elif evt.action == "2" and evt.value > 0:
-#             robot_state.joy_value[6] = 2
-#         elif evt.action == "3" and evt.value > 0:
-#             robot_state.joy_value[6] = 3
-#         elif evt.action == "SMART_GAIT" and evt.value > 0:
-#             robot_state.joy_value[6] = 4
-#         elif evt.action == "QUICK_STOP" and evt.value > 0:
-#             if robot_state.joy_value[7] == 1:
-#                 robot_state.joy_value[7] = 0
-#                 print("out of quick stop")
-#             else:
-#                 robot_state.joy_value[7] = 1
-#                 print("enter quick stop")
-
-#     # update the viewer
-#     gym.clear_lines(viewer)
-#     robot_state.draw_lines()
-
-#     gym.step_graphics(sim)
-#     gym.draw_viewer(viewer, sim, True)
-#     gym.sync_frame_time(sim)
-
-#     # Wait for dt to elapse in real time.
-#     # This synchronizes the physics simulation with the rendering rate.
-#     end_time=time.time()
-#     # print("time",end_time-begin_time)
-#     while end_time<begin_time+sim_dt:
-#         end_time=time.time()
-
-# print("Done")
-
-# gym.destroy_viewer(viewer)
-# gym.destroy_sim(sim)
