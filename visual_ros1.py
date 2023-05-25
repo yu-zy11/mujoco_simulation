@@ -34,4 +34,5 @@ class VisualRos:
 
     def callback(self, data):
         self.user_input = data
+        a=1
 
