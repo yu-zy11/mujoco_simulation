@@ -185,11 +185,11 @@ class MujocoSimulator:
         print("robot total mass is ",total_mass)
 
     def updateMujocoCmd(self):
-        self.cmd.qpos_des = self.default_joint_pos
-        self.cmd.qpos_des = self.state.qpos
+        # self.cmd.qpos_des = self.default_joint_pos.copy()
+        self.cmd.qpos_des = self.state.qpos.copy()
         self.cmd.tau_ff=self.ctrl.torque.tolist()
         self.cmd.kp=[0]*12
-        self.cmd.kd=[1]*12
+        self.cmd.kd=[2]*12
         a=1
 
     def controller(self, model, data):
@@ -207,7 +207,8 @@ class MujocoSimulator:
             self.data.ctrl[i] = cmd.kp[i] * (
                 cmd.qpos_des[i] - self.data.qpos[7 + i]) + cmd.kd[i] * (
                     cmd.qvel_des[i] - self.data.qvel[6 + i]) + cmd.tau_ff[i]
-
+        print("ctrl",self.data.ctrl)
+        time.sleep(0.0001)
     def runSimulation(self):
         self.ros_thread.start()
         # key and mouse control
@@ -215,12 +216,12 @@ class MujocoSimulator:
         glfw.set_cursor_pos_callback(self.window, self.mouse_move)
         glfw.set_mouse_button_callback(self.window, self.mouse_button)
         glfw.set_scroll_callback(self.window, self.mouse_scroll)
-        # mj.set_mjcb_control(self.controller)
+        mj.set_mjcb_control(self.controller)
         # mj.mj_forward(self.model, self.data)
         while not glfw.window_should_close(self.window):
             time_prev = self.data.time
             while self.data.time-time_prev<1.0/60.0:
-                self.controller(self.model,self.data)
+                # self.controller(self.model,self.data)
                 mj.mj_step(self.model, self.data)
 
             viewport_width, viewport_height = glfw.get_framebuffer_size(
@@ -342,7 +343,7 @@ class MujocoSimulator:
 
 
 if __name__ == '__main__':
-    model_xml = "prototype_model/scene.xml"
+    model_xml = "prototype_model/scene_v1.xml"
     sim = MujocoSimulator(model_xml)
     sim.initSimulator()
     sim.initController()

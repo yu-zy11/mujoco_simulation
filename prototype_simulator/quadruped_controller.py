@@ -57,7 +57,7 @@ class QuadrupedController:
         self.counter = 0
         # quick stop
         self.quick_stop_=False
-        self.body_height=0.46
+        self.body_height=0.6
         self.root_pos_des_rel=np.zeros(3)
         self.root_pos_des_abs=np.zeros(3)
         self.root_acc_quick_stop=np.zeros(3)
@@ -153,17 +153,21 @@ class QuadrupedController:
         # command
         self.qp = QP()
         self.torque = np.zeros(12)
-        self.default_foot_pos = np.array([[+0.25, -0.15, -0.3],
-                             [+0.25, 0.15, -0.3],
-                             [-0.25, -0.15, -0.3],
-                             [-0.25, 0.15, -0.3]])
+        # self.default_foot_pos = np.array([[+0.25, -0.15, -self.body_height], #prototype
+        #                      [+0.25, 0.15, -self.body_height],
+        #                      [-0.25, -0.15, -self.body_height],
+        #                      [-0.25, 0.15, -self.body_height]])
+        self.default_foot_pos = np.array([[+0.55, -0.3435, -self.body_height], #v1
+                             [+0.55, 0.3435, -self.body_height],
+                             [-0.55, -0.3435, -self.body_height],
+                             [-0.55, 0.3435, -self.body_height]])
         self.foot_pos_start = self.default_foot_pos.copy()
         self.foot_pos_end = self.default_foot_pos.copy()
         self.kp_kin = np.array([[1000.0, 1000.0, 5000.0],
                                 [1000.0, 1000.0, 5000.0],
                                 [1000.0, 1000.0, 5000.0],
                                 [1000.0, 1000.0, 5000.0]])
-        self.default_root_state=np.array([0,0,0.3,0,0,0])
+        self.default_root_state=np.array([0,0,0.5,0,0,0])
         self.com_offset=np.array([0,0,0])
         self.km_kin = np.array([0.1, 0.1, 0.02,
                                 0.1, 0.1, 0.02,
