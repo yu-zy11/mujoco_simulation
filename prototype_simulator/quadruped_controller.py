@@ -153,10 +153,6 @@ class QuadrupedController:
         # command
         self.qp = QP()
         self.torque = np.zeros(12)
-        # self.default_foot_pos = np.array([[+0.25, -0.15, -self.body_height], #prototype
-        #                      [+0.25, 0.15, -self.body_height],
-        #                      [-0.25, -0.15, -self.body_height],
-        #                      [-0.25, 0.15, -self.body_height]])
         self.default_foot_pos = np.array([[+0.55, -0.3435, -self.body_height], #v1
                              [+0.55, 0.3435, -self.body_height],
                              [-0.55, -0.3435, -self.body_height],
@@ -260,6 +256,10 @@ class QuadrupedController:
             self.root_ang_vel_target[:] = [0.0, 0.0, 0.0]
             self.gait_type = 0
         self.root_pos_target = self.default_root_state[0:3] + self.com_offset + np.array([0.0, 0.0, self.gamepad_cmd.body_height])
+        self.default_foot_pos = np.array([[+0.55, -0.3435, -self.body_height-self.gamepad_cmd.body_height], #v1
+                             [+0.55, 0.3435, -self.body_height-self.gamepad_cmd.body_height],
+                             [-0.55, -0.3435, -self.body_height-self.gamepad_cmd.body_height],
+                             [-0.55, 0.3435, -self.body_height-self.gamepad_cmd.body_height]])
         self.root_euler_target[:] = self.default_root_state[3:6]
 
         o = np.average(self.contact_pos_world, axis=0)

@@ -208,7 +208,7 @@ class MujocoSimulator:
                 cmd.qpos_des[i] - self.data.qpos[7 + i]) + cmd.kd[i] * (
                     cmd.qvel_des[i] - self.data.qvel[6 + i]) + cmd.tau_ff[i]
         print("ctrl",self.data.ctrl)
-        time.sleep(0.0001)
+        # time.sleep(0.0001)
     def runSimulation(self):
         self.ros_thread.start()
         # key and mouse control

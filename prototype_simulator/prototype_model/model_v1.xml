@@ -13,6 +13,9 @@
       <geom friction="0.6" margin="0.001"/>
       <default class="collision">
         <geom group="2"/>
+        <default class="load">
+          <geom type="cylinder" size="0.4 0.04" mass="15" pos="0 0 0.2" quat="1 0 0 0"/>
+        </default>
         <default class="abad">
           <geom type="cylinder" size="0.04 0.04" mass="1.1"  quat="1 1 0 0"/>
         </default>
@@ -42,6 +45,7 @@
     <light name="spotlight" mode="targetbodycom" target="trunk_link" pos="0 -1 2"/>
     <body name="trunk_link" pos="0 0 0.9">
       <geom class="collision" mass="15.08" group="2" pos="0 0 0.0" size="0.55 0.255 0.1" type="box"/>
+      <geom class="load"/>
       <site name="imu" size="0.01" pos="0 0 0"/>
       <freejoint/>
       <body name="FR_abad" pos="0.55 -0.255 0">
