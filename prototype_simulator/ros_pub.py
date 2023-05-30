@@ -61,8 +61,8 @@ class BodyInfoPub:
         rostime = self.body.header.stamp.from_sec(time)
         self.body.header.stamp.secs = rostime.secs
         self.body.header.stamp.nsecs = rostime.nsecs
-        self.body.position = q
-        self.body.velocity = v
+        self.body.position = q.copy()
+        self.body.velocity = v.copy()
 
     def publishData(self):
         self.pub.publish(self.body)

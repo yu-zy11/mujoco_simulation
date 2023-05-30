@@ -65,6 +65,7 @@ class MujocoSimulator:
         hip = -0.732
         knee = 1.4
         self.default_joint_pos = [0, hip, knee, 0, hip, knee, 0, hip, knee, 0, hip, knee  ]
+        # self.default_joint_pos = [0, -hip, -knee, 0, -hip, -knee, 0, hip, knee, 0, hip, knee  ]#for px2
         self.print_camera_config = 1
         self.button_left = False
         self.button_middle = False
@@ -98,7 +99,11 @@ class MujocoSimulator:
             quat = self.data.qpos[3:7]  # w x y z
             r = R.from_quat([quat[1], quat[2], quat[3], quat[0]])
             rpy = r.as_euler("zyx", degrees=False)  # z y x
-            v = self.data.qvel[0:6]
+            rotR = r.as_matrix()
+            vel_world=rotR.T@np.array(self.data.qvel[0:3])
+            # v = self.data.qvel[0:6]
+            v=[0]*6
+            v=[vel_world[0],vel_world[1],vel_world[2],self.data.qvel[3],self.data.qvel[4],self.data.qvel[5]]
             q[3:6] = [rpy[2], rpy[1], rpy[0]]
             self.bdInfo.appendData(q, v, mujoco_time)
             self.bdInfo.publishData()
@@ -112,6 +117,7 @@ class MujocoSimulator:
         mj.mj_resetData(self.model, self.data)
         self.data.qpos[0:7]=[0, 0, 0.5, 1, 0, 0, 0]
         self.data.qpos[7:19]=self.default_joint_pos
+        self.ctrl.resetController()
         mj.mj_forward(self.model, self.data)
         mj.mj_step(self.model, self.data)
 
@@ -207,7 +213,7 @@ class MujocoSimulator:
             self.data.ctrl[i] = cmd.kp[i] * (
                 cmd.qpos_des[i] - self.data.qpos[7 + i]) + cmd.kd[i] * (
                     cmd.qvel_des[i] - self.data.qvel[6 + i]) + cmd.tau_ff[i]
-        print("ctrl",self.data.ctrl)
+        # print("ctrl",self.data.ctrl)
         # time.sleep(0.0001)
     def runSimulation(self):
         self.ros_thread.start()
@@ -216,12 +222,12 @@ class MujocoSimulator:
         glfw.set_cursor_pos_callback(self.window, self.mouse_move)
         glfw.set_mouse_button_callback(self.window, self.mouse_button)
         glfw.set_scroll_callback(self.window, self.mouse_scroll)
-        mj.set_mjcb_control(self.controller)
+        # mj.set_mjcb_control(self.controller)
         # mj.mj_forward(self.model, self.data)
         while not glfw.window_should_close(self.window):
             time_prev = self.data.time
             while self.data.time-time_prev<1.0/60.0:
-                # self.controller(self.model,self.data)
+                self.controller(self.model,self.data)
                 mj.mj_step(self.model, self.data)
 
             viewport_width, viewport_height = glfw.get_framebuffer_size(
@@ -283,14 +289,19 @@ class MujocoSimulator:
         if (act == glfw.PRESS and key == glfw.KEY_R):
             self.resetSim()
             self.gamepad_cmd.gait_type=0
+            self.gamepad_cmd.body_height=0
+            self.gamepad_cmd.vel_cmd=[0]*3
+            self.gamepad_cmd.omega_cmd=[0]*3
         if act == glfw.PRESS and key == glfw.KEY_UP:
-            self.gamepad_cmd.vel_cmd[0]+=0.1
+            self.gamepad_cmd.vel_cmd[0]+=0.2
+            self.gamepad_cmd.omega_cmd[2]=0
         if act == glfw.PRESS and key == glfw.KEY_DOWN:
-            self.gamepad_cmd.vel_cmd[0]-=0.1
+            self.gamepad_cmd.vel_cmd[0]-=0.2
+            self.gamepad_cmd.omega_cmd[2]=0
         if act == glfw.PRESS and key == glfw.KEY_LEFT:
-            self.gamepad_cmd.omega_cmd[2]+=0.1
+            self.gamepad_cmd.omega_cmd[2]+=0.3
         if act == glfw.PRESS and key == glfw.KEY_RIGHT:
-            self.gamepad_cmd.omega_cmd[2]-=0.1
+            self.gamepad_cmd.omega_cmd[2]-=0.3
         if act==glfw.PRESS and key==glfw.KEY_W:
             self.gamepad_cmd.body_height+=0.05
         if act==glfw.PRESS and key==glfw.KEY_S:
@@ -343,7 +354,7 @@ class MujocoSimulator:
 
 
 if __name__ == '__main__':
-    model_xml = "prototype_model/scene_v1.xml"
+    model_xml = "prototype_model/scene_130.xml"
     sim = MujocoSimulator(model_xml)
     sim.initSimulator()
     sim.initController()
