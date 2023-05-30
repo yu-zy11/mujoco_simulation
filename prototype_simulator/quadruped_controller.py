@@ -103,6 +103,7 @@ class QuadrupedController:
         self.root_euler = np.zeros(3)
         self.use_terrain_est_new=True
         self.terrain_euler = np.zeros([3, 1]) #euler zyx [rz ry rx]
+        self.rot_mat_terrain=np.zeros([3, 3])
         self.terrain_height=0 #the projection point height of body com in terrain plane 
         self.terrain_com_in_plane=np.zeros(3)
         self.terrain_coef=np.zeros([3, 1])
@@ -187,7 +188,7 @@ class QuadrupedController:
                                 0.1, 0.1, 0.02])
         self.kp_root_lin = np.array([500.0, 500.0, 15000.0])
         self.kd_root_lin = np.array([500.0, 500.0, 500.0])
-        self.kp_root_ang = np.array([20.0, 1000.0, 200.0])
+        self.kp_root_ang = np.array([200.0, 1000.0, 20.0])
         self.kd_root_ang = np.array([2.0, 2.0, 20.0])
         self.root_pos_delta_z = 0
         self.root_vel_delta_z = -0.5
@@ -204,7 +205,7 @@ class QuadrupedController:
         self.joint_vel = state.qvel
 
         r = R.from_quat(self.root_quat)#xyzw
-        self.root_euler = r.as_euler('zyx')
+        self.root_euler = r.as_euler('zyx', degrees=False)
         self.rot_mat = r.as_matrix()
         r = R.from_euler('z', self.root_euler[0])
         self.rot_mat_z = r.as_matrix()
@@ -260,9 +261,9 @@ class QuadrupedController:
         ny=ny/np.linalg.norm(ny)
         nx=np.cross(ny,nz)
         nx=nx/np.linalg.norm(nx)
-        rot_mat_terrain=np.vstack([nx,ny,nz]).T
-        r = R.from_matrix(rot_mat_terrain)#xyzw
-        self.terrain_euler = r.as_euler('zyx')
+        self.rot_mat_terrain=np.vstack([nx,ny,nz]).T
+        r = R.from_matrix(self.rot_mat_terrain)#xyzw
+        self.terrain_euler = r.as_euler('zyx', degrees=False)
         # print("terrain zyx",self.terrain_euler)
         #calcualte the terrain height, plane equation is ax+by+cz=1
         self.terrain_height=self.getPlanePointZ(coef,self.root_pos[0],self.root_pos[1])
@@ -310,10 +311,17 @@ class QuadrupedController:
         
         self.root_pos_target = self.default_root_state[0:3] + self.com_offset + np.array([0.0, 0.0, self.gamepad_cmd.body_height])
         
-        print("terrain_euler",self.terrain_euler)
-        print("root_euler",self.root_euler)
+        # print("terrain_euler",self.terrain_euler)
+        # print("root_euler",self.root_euler)
         filter=0.5
-        self.root_euler_target=self.root_euler_target*filter+(1-filter)*self.terrain_euler #zyx
+        nx_root=self.rot_mat_terrain[:,0]
+        ny_root=np.cross(np.array([0,0,1]),nx_root)
+        ny_root=ny_root/np.linalg.norm(ny_root) #unit
+        nz_root=np.cross(nx_root,ny_root)
+        rotm_des_root=np.vstack([nx_root,ny_root,nz_root]).T
+        euler=rot2euler(rotm_des_root)
+        # self.root_euler_target=self.root_euler_target*filter+(1-filter)*self.terrain_euler #zyx
+        self.root_euler_target=self.root_euler_target*filter+(1-filter)*euler #keep body's y axis horizental
         self.root_euler_target[0]+=self.root_ang_vel_target[2]*self.sim_step
         self.root_pos_target+=self.terrain_com_in_plane
 
@@ -572,8 +580,8 @@ class QuadrupedController:
         R_scr=self.rot_mat.copy()
         R_err=R_scr.T@R_des
         axis,angle_error=rot2axisangle(R_err)
-        root_acc_target[3:6] += 500 *axis*angle_error
-        self.root_acc_angle=500 *axis*angle_error
+        root_acc_target[3:6] += self.kp_root_ang *axis*angle_error
+        self.root_acc_angle=self.kp_root_ang *axis*angle_error
         print("root_euler",self.root_euler)
         print("root_acc_target",root_acc_target[3:6])
         
@@ -585,7 +593,7 @@ class QuadrupedController:
         # root_acc_target[4] += self.kp_root_ang[1] * euler_error[1]
         # root_acc_target[5] += self.kp_root_ang[0] * euler_error[0]
         
-        # root_acc_target[3:6] += self.kd_root_ang * (self.root_ang_vel_target - self.root_ang_vel_rel)
+        root_acc_target[3:6] += self.kd_root_ang * (self.root_ang_vel_target - self.root_ang_vel_rel)
 
         gravity = 9.81 * self.total_mass
         root_acc_target[2] += gravity
@@ -607,7 +615,7 @@ class QuadrupedController:
         inv_inertia_mat[0:3, :] = np.tile(np.eye(3), 4)
         for i in range(4):
             # inv_inertia_mat[3:6, i * 3: i * 3 + 3] = self.rot_mat_z.T @ skew(self.foot_pos_abs[i, :] - self.com_offset)
-            inv_inertia_mat[3:6, i * 3: i * 3 + 3] = skew(self.foot_pos_abs[i, :] - self.com_offset)
+            inv_inertia_mat[3:6, i * 3: i * 3 + 3] = self.rot_mat.T@skew(self.foot_pos_abs[i, :] -self.rot_mat@ self.com_offset)
         acc_weight = np.array([1.0, 1.0, 1.0, 10.0, 10.0, 10.0])
         grf_weight = 1e-3
         grf_diff_weight = 1e-2
@@ -666,6 +674,11 @@ def rot2axisangle(rotm):
         axis=rot_vec/norm
         angle=norm
     return axis,angle
+
+def rot2euler(rotm):
+    r=R.from_matrix(rotm)
+    euler=r.as_euler("zyx", degrees=False)
+    return euler
 
 def skew(v):
     return np.array([[0, -v[2], v[1]],
