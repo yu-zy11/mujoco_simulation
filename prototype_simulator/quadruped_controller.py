@@ -1,10 +1,12 @@
 from ast import If, Return
 from collections import deque
+import imp
 from scipy.spatial.transform import Rotation as R
 import casadi as ca
 import numpy as np
 import sys, os
 import time
+
 
 
 class QP:
@@ -61,7 +63,11 @@ class QuadrupedController:
         self.body_height=0.52
         self.body_width=0.44
         self.body_length=0.8
-        self.gait_period=0.5
+        self.gait_period=0.4
+        self.hip_position=np.array([[+self.body_length/2, -self.body_width/2, 0], #v1
+                             [+self.body_length/2, self.body_width/2, 0],
+                             [-self.body_length/2, -self.body_width/2, 0],
+                             [-self.body_length/2, self.body_width/2, 0]])
         self.root_pos_des_rel=np.zeros(3)
         self.root_pos_des_abs=np.zeros(3)
         self.root_acc_quick_stop=np.zeros(3)
@@ -75,6 +81,8 @@ class QuadrupedController:
         self.time_stop_total=0
         self.quick_stop_first_run=True
         self.delta_xy=np.zeros(2)
+        #test info
+        self.root_acc_angle=np.zeros(3)
         # lip
         self.use_lip=False
         self.root_p0=np.zeros(3)
@@ -93,7 +101,7 @@ class QuadrupedController:
         self.joint_vel = np.zeros(12)
 
         self.root_euler = np.zeros(3)
-        self.use_terrain_est_new=False
+        self.use_terrain_est_new=True
         self.terrain_euler = np.zeros([3, 1]) #euler zyx [rz ry rx]
         self.terrain_height=0 #the projection point height of body com in terrain plane 
         self.terrain_com_in_plane=np.zeros(3)
@@ -179,7 +187,7 @@ class QuadrupedController:
                                 0.1, 0.1, 0.02])
         self.kp_root_lin = np.array([500.0, 500.0, 15000.0])
         self.kd_root_lin = np.array([500.0, 500.0, 500.0])
-        self.kp_root_ang = np.array([200.0, 1000.0, 20.0])
+        self.kp_root_ang = np.array([20.0, 1000.0, 200.0])
         self.kd_root_ang = np.array([2.0, 2.0, 20.0])
         self.root_pos_delta_z = 0
         self.root_vel_delta_z = -0.5
@@ -187,9 +195,6 @@ class QuadrupedController:
         self.grf_last = np.zeros(12)  # initialize the last solve zeros
 
     def updateState(self,state):
-        # update terrain
-        global init_terrain_state
-
         # update robot
         self.root_pos = state.trunk_pos
         self.root_quat = np.array([state.imu_quat[1],state.imu_quat[2],state.imu_quat[3],state.imu_quat[0]])
@@ -199,9 +204,9 @@ class QuadrupedController:
         self.joint_vel = state.qvel
 
         r = R.from_quat(self.root_quat)#xyzw
-        self.root_euler = r.as_euler('xyz')
+        self.root_euler = r.as_euler('zyx')
         self.rot_mat = r.as_matrix()
-        r = R.from_euler('z', self.root_euler[2])
+        r = R.from_euler('z', self.root_euler[0])
         self.rot_mat_z = r.as_matrix()
 
         self.root_lin_vel_rel = self.root_lin_vel @ self.rot_mat_z #body to world
@@ -219,32 +224,15 @@ class QuadrupedController:
         self.foot_jaco = state.jacob_body
         global contact_force_low
         contact_force_low = 20
-        # terrain estimation
+        # update terrain
         global terrain_filter_rate
         terrain_filter_rate=0.5
-        if not self.use_terrain_est_new:
-            for i in range(4):
-                if self.counter == 0 or \
-                    (self.contact_target[i] and np.linalg.norm(self.foot_contact_force[i]) > contact_force_low):
-                    self.contact_pos_world[i] = self.foot_pos_world[i]
-            contact_pos_abs = self.contact_pos_world @ self.rot_mat_z
-            contact_pos_x = contact_pos_abs[:, 0]
-            contact_pos_z = contact_pos_abs[:, 2]
-
-            A = np.vstack([contact_pos_x, np.ones(len(contact_pos_x))]).T
-            m, c = np.linalg.lstsq(A, contact_pos_z, rcond=None)[0]
-            p = np.arctan(-m)
-            w = [1, 1, 1, 1]
-            h = np.average(contact_pos_z, weights=w)
-            self.terrain_pitch = (1 - terrain_filter_rate) * self.terrain_pitch + terrain_filter_rate * p
-            self.terrain_height = (1 - terrain_filter_rate) * self.terrain_height + terrain_filter_rate * h
-        if self.use_terrain_est_new:
-            self.terrainStateEst()
-            p=self.terrain_euler[1]
-            h=self.terrain_height
-            self.terrain_pitch = (1 - terrain_filter_rate) * self.terrain_pitch + terrain_filter_rate * p
-            self.terrain_height = (1 - terrain_filter_rate) * self.terrain_height + terrain_filter_rate * h
-       
+        self.terrainStateEst()
+        p=self.terrain_euler[1]
+        h=self.terrain_height
+        self.terrain_pitch = (1 - terrain_filter_rate) * self.terrain_pitch + terrain_filter_rate * p
+        self.terrain_height = (1 - terrain_filter_rate) * self.terrain_height + terrain_filter_rate * h
+       # update terrain
 
     def terrainStateEst(self):
         if self.counter<=2: #init contact_pos_world
@@ -275,13 +263,13 @@ class QuadrupedController:
         rot_mat_terrain=np.vstack([nx,ny,nz]).T
         r = R.from_matrix(rot_mat_terrain)#xyzw
         self.terrain_euler = r.as_euler('zyx')
-        print("terrain zyx",self.terrain_euler)
+        # print("terrain zyx",self.terrain_euler)
         #calcualte the terrain height, plane equation is ax+by+cz=1
         self.terrain_height=self.getPlanePointZ(coef,self.root_pos[0],self.root_pos[1])
         self.terrain_com_in_plane[0]=self.root_pos[0]
         self.terrain_com_in_plane[1]=self.root_pos[1]
         self.terrain_com_in_plane[2]=self.terrain_height
-        print("terrain_height",self.terrain_height)
+        # print("terrain_height",self.terrain_height)
 
     def getPlanePointZ(self,plane_coef,x,y):
         ZERO=0.00000001
@@ -318,24 +306,17 @@ class QuadrupedController:
             self.root_lin_vel_target[:] = [0.0, 0.0, 0.0]
             self.root_ang_vel_target[:] = [0.0, 0.0, 0.0]
             self.gait_type = 0
+
+        
         self.root_pos_target = self.default_root_state[0:3] + self.com_offset + np.array([0.0, 0.0, self.gamepad_cmd.body_height])
-        self.default_foot_pos = np.array([[+self.body_length/2 , -self.body_width/2, -self.body_height-self.gamepad_cmd.body_height], #v1
-                             [+self.body_length/2 , self.body_width/2, -self.body_height-self.gamepad_cmd.body_height],
-                             [-self.body_length/2 , -self.body_width/2, -self.body_height-self.gamepad_cmd.body_height],
-                             [-self.body_length/2 , self.body_width/2, -self.body_height-self.gamepad_cmd.body_height]])
-        if not self.use_terrain_est_new:
-            self.root_euler_target[0:2] = self.default_root_state[3:5]
-            self.root_euler_target[2]+=self.root_ang_vel_target[2]*self.sim_step
-            self.root_euler_target[1] += self.terrain_pitch
-            o = np.average(self.contact_pos_world, axis=0)
-            self.contact_pos_avg = (1 - terrain_filter_rate) * self.contact_pos_avg + terrain_filter_rate * o
-            self.root_pos_target[2] += self.terrain_height
-            self.root_pos_target[0:2] += self.contact_pos_avg[0:2]
-        else:
-            self.root_euler_target=np.array([self.terrain_euler[2],self.terrain_euler[1],self.terrain_euler[0]])
-            self.root_euler_target[2]+=self.root_ang_vel_target[2]*self.sim_step
-            self.root_pos_target+=self.terrain_com_in_plane
-        # print("self.root_euler_target",self.root_euler_target)
+        
+        print("terrain_euler",self.terrain_euler)
+        print("root_euler",self.root_euler)
+        filter=0.5
+        self.root_euler_target=self.root_euler_target*filter+(1-filter)*self.terrain_euler #zyx
+        self.root_euler_target[0]+=self.root_ang_vel_target[2]*self.sim_step
+        self.root_pos_target+=self.terrain_com_in_plane
+
     def resetController(self):
         self.root_euler_target[:]=self.default_root_state[3:6]
     def updatePlan(self):
@@ -442,48 +423,33 @@ class QuadrupedController:
         delta_foot_y = self.kp_foot_y * (self.root_pos[1] - self.root_pos_target[1]) + \
                        self.kd_foot_y * (self.root_lin_vel_rel[1] - self.root_lin_vel_target[1]) + \
                        self.kf_foot_y * self.root_lin_vel_rel[1]
-        if self.use_lip:
-            self.Tc=np.sqrt(self.body_height/9.80)
-            T=count_per_cycle*self.sim_step/2
-            delta_foot_x=-(self.root_lin_vel_target[0]-self.root_lin_vel_rel[0]*np.cosh(T/self.Tc))/(np.sinh(T/self.Tc))*self.Tc
-            delta_foot_y=-(self.root_lin_vel_target[1]-self.root_lin_vel_rel[1]*np.cosh(T/self.Tc))/(np.sinh(T/self.Tc))*self.Tc
-            # x_max=0.25
-            # if delta_foot_x>=0:
-            #     delta_foot_x=np.minimum(x_max,delta_foot_x)
-            # else:
-            #     delta_foot_x=np.maximum(-x_max,delta_foot_x)
-            # if delta_foot_y>=0:
-            #     delta_foot_y=np.minimum(x_max,delta_foot_y)
-            # else:
-            #     delta_foot_y=np.maximum(-x_max,delta_foot_y)
-        
-        if (self.quick_stop_):
-            delta_foot_x = self.root_lin_vel_rel[0] * np.sqrt(self.body_height / 9.80)
-            delta_foot_y = self.root_lin_vel_rel[1] * np.sqrt(self.body_height / 9.80)
-            x_max=0.21  
-            num=np.ceil(np.maximum(np.abs(delta_foot_x/x_max),np.abs(delta_foot_y/x_max)))  
-            if delta_foot_x>=x_max:
-                delta_foot_x=x_max
-            if delta_foot_x<=-x_max:
-                delta_foot_x=-x_max
-            if delta_foot_y>=x_max:
-                delta_foot_y=x_max
-            if delta_foot_y<=-x_max:
-                delta_foot_y=-x_max    
-            if self.quick_stop_first_run:
-                self.time_stop_total=(num+1)*count_per_cycle*self.sim_step/2-self.sim_step*2
-        
         # TODO: add height change based on terrain roll
-        delta_foot_z = self.kp_pitch_z * np.sin(self.terrain_pitch) * np.array([-1, -1, 1, 1])
-        delta_foot_z += -delta_foot_x * np.tan(self.terrain_pitch)
+        for leg in range(4):
+            hip_position_world=self.root_pos+self.rot_mat@self.hip_position[leg]
+            delta_foot_rel=np.array([delta_foot_x,delta_foot_y,0])
+            delta_foot_world=self.rot_mat@delta_foot_rel
+            foot_position_world=hip_position_world+delta_foot_world
+            foot_height=self.getPlanePointZ(self.terrain_coef,foot_position_world[0],foot_position_world[1])
+            foot_position_world[2]=foot_height
+            self.foot_pos_world_target[leg]=foot_position_world.copy()
+            self.foot_pos_abs_target[leg]=self.foot_pos_world_target[leg]- self.root_pos
 
-        self.foot_pos_rel_target = self.default_foot_pos.copy()
-        self.foot_pos_rel_target[:, 0] += delta_foot_x
-        self.foot_pos_rel_target[:, 1] += delta_foot_y
-        self.foot_pos_rel_target[:, 2] += delta_foot_z
-        # self.foot_pos_rel_target[:, 2] += -self.joy_value[2]
-        self.foot_pos_abs_target = self.foot_pos_rel_target @ self.rot_mat_z.T
-        self.foot_pos_world_target =self.foot_pos_abs_target+ self.root_pos
+        # print("self.foot_pos_abs_target",self.foot_pos_abs_target)   
+        # self.default_foot_pos = np.array([[+self.body_length/2 , -self.body_width/2, -self.body_height-self.gamepad_cmd.body_height], #v1
+        #                      [+self.body_length/2 , self.body_width/2, -self.body_height-self.gamepad_cmd.body_height],
+        #                      [-self.body_length/2 , -self.body_width/2, -self.body_height-self.gamepad_cmd.body_height],
+        #                      [-self.body_length/2 , self.body_width/2, -self.body_height-self.gamepad_cmd.body_height]])
+        
+        # delta_foot_z = self.kp_pitch_z * np.sin(self.terrain_pitch) * np.array([-1, -1, 1, 1])
+        # delta_foot_z += -delta_foot_x * np.tan(self.terrain_pitch)
+
+        # self.foot_pos_rel_target = self.default_foot_pos.copy()
+        # self.foot_pos_rel_target[:, 0] += delta_foot_x
+        # self.foot_pos_rel_target[:, 1] += delta_foot_y
+        # self.foot_pos_rel_target[:, 2] += delta_foot_z
+        # # self.foot_pos_rel_target[:, 2] += -self.joy_value[2]
+        # self.foot_pos_abs_target = self.foot_pos_rel_target @ self.rot_mat_z.T
+        # self.foot_pos_world_target =self.foot_pos_abs_target+ self.root_pos
 
     def updateCommand(self):
         # foot control
@@ -534,9 +500,9 @@ class QuadrupedController:
         self.root_pos_target[2] += self.root_pos_delta_z
 
         # grf control
-        foot_force_grf = -self._root_control()
+        foot_force_grf = -self._root_control() #foot force in world frame
         # print("foot_force",foot_force_grf)
-        foot_force_grf_rel = foot_force_grf @ self.rot_mat
+        foot_force_grf_rel = foot_force_grf @ self.rot_mat # transfer to body frame
         foot_force_grf_rel_flat = foot_force_grf_rel.flatten()
         torque_grf = self.foot_jaco.T @ foot_force_grf_rel_flat
 
@@ -583,95 +549,43 @@ class QuadrupedController:
         count_per_cycle = int(self.gait_period/self.sim_step) #0.3/0.01
         count_per_phase = count_per_cycle / 2
 
-    def check_termination(self):
-        max_distance = np.inf
-        max_height = 10
-        max_pitch_roll = np.deg2rad(60)
-        max_joint_vel = 30
+    # def check_termination(self):
+    #     max_distance = np.inf
+    #     max_height = 10
+    #     max_pitch_roll = np.deg2rad(60)
+    #     max_joint_vel = 30
 
-        xy_distance_check = np.linalg.norm(self.root_pos[0:2]) > max_distance
-        z_height_check = np.abs(self.root_pos[2]) > max_height
-        orientation_check = np.any(np.abs(self.root_euler[0:2]) > max_pitch_roll)
-        joint_vel_check = np.any(np.abs(self.joint_vel) > max_joint_vel)
+    #     xy_distance_check = np.linalg.norm(self.root_pos[0:2]) > max_distance
+    #     z_height_check = np.abs(self.root_pos[2]) > max_height
+    #     orientation_check = np.any(np.abs(self.root_euler[0:2]) > max_pitch_roll)
+    #     joint_vel_check = np.any(np.abs(self.joint_vel) > max_joint_vel)
 
-        if np.any([xy_distance_check, z_height_check, orientation_check, joint_vel_check]):
-            self.reset()
-
+    #     if np.any([xy_distance_check, z_height_check, orientation_check, joint_vel_check]):
+    #         self.reset()
     def _root_control(self):
         # TODO: fix the 180 degree bug
-        euler_error = self.root_euler_target - self.root_euler
+        # euler_error = self.root_euler_target - self.root_euler
         root_acc_target = np.zeros(6)
-        #test
-        if self.use_lip:
-            if np.all(self.contact_target==True):
-                self.Tc=np.sqrt(self.body_height/9.80)
-                T=count_per_cycle*self.sim_step/2
-                root_vel_des=self.rot_mat_z@self.root_lin_vel_target
-                self.root_p0=(root_vel_des-self.root_lin_vel*np.cosh(T/self.Tc))/(np.sinh(T/self.Tc))*self.Tc
-                self.root_p0[2]=0
-                self.root_des=-self.root_p0+self.root_pos
-                self.root_des[2]=self.body_height 
-                self.root_v0=self.root_lin_vel.copy()
-                self.root_v0[2]=0
-                print("self.root_time",self.root_time)
-                self.root_time=0          
-            self.root_time+=self.sim_step
-            root_pos_abs=np.zeros(3)
-            root_pos_abs=self.root_p0*np.cosh(self.root_time/self.Tc)+self.Tc*self.root_v0*np.sinh(self.root_time/self.Tc)
-            # print("root_pos_abs",root_pos_abs)
-            self.root_pos_target[0:2] =root_pos_abs[0:2]+self.root_des[0:2]   
-            self.root_pos_target[2]=self.body_height       
-            root_vel_abs=np.zeros(3)    
-            root_vel_abs= self.root_p0/self.Tc*np.sinh(self.root_time/self.Tc)+self.root_v0*np.cosh(self.root_time/self.Tc) #world frame
-            # print("root_vel_abs",root_vel_abs)
-            self.root_lin_vel_target=self.rot_mat_z.T@root_vel_abs
-            root_acc_lip=np.zeros(3)
-            root_acc_lip =root_pos_abs/(self.Tc**2) #+1000*(self.root_pos_des_abs-self.root_pos)
-            root_acc_lip[2]=0
-            root_acc_target[0:3] += root_acc_lip
-            # root_acc_target[0:3] +=5000*(self.root_pos_target - self.root_pos)
-            self.contact_target_last=self.contact_target
-        #test end
-
-        if(self.quick_stop_):
-            #p0 v0 
-            if self.quick_stop_first_run: 
-                self.vel0=self.root_lin_vel[0:2].copy() #in world frame
-                self.Tc=np.sqrt(self.body_height/9.80)
-                self.root_pos_des_abs[0:2] = self.root_lin_vel[0:2] * self.Tc+self.root_pos[0:2]
-                self.pos0=-self.vel0 * self.Tc #in world frame
-                self.time=0
-                self.quick_stop_first_run=False 
-            self.time+=self.sim_step
-            if self.time<=self.time_stop_total:
-                print("self.time",self.time)
-                root_pos_abs=np.zeros(3)
-                root_pos_abs[0:2]=self.pos0*np.cosh(self.time/self.Tc)+self.Tc*self.vel0*np.sinh(self.time/self.Tc)
-                self.root_pos_target[0:2] =root_pos_abs[0:2]+self.root_pos_des_abs[0:2]   
-                self.root_pos_target[2]=self.body_height  
-                root_vel_abs=np.zeros(3)         
-                root_vel_abs[0:2]= self.pos0/self.Tc*np.sinh(self.time/self.Tc)+self.vel0*np.cosh(self.time/self.Tc) 
-                self.root_lin_vel_target=self.rot_mat_z.T@root_vel_abs
-                self.root_acc_quick_stop =root_pos_abs/(self.Tc**2) 
-                self.root_acc_quick_stop[2]=0
-                root_acc_target[0:3] += self.root_acc_quick_stop
-            else:
-                # print("self.time",self.time)
-                self.time-=self.sim_step
-                self.gait_type=0
-                self.root_pos_target[0:2] =self.root_pos_des_abs[0:2]
-                self.root_pos_target[2]=self.body_height
-                self.root_lin_vel_target[0:3]=0
-                root_acc_target[0:3]=0
-                self.root_acc_quick_stop[0:3]=0
-            self.gait_type_last_stop=self.gait_type
-            self.contact_target_last =self.contact_target.copy()
-        #quick stop end
+        #control angle
+        r = R.from_euler('zyx', self.root_euler_target)
+        R_des=r.as_matrix()
+        R_scr=self.rot_mat.copy()
+        R_err=R_scr.T@R_des
+        axis,angle_error=rot2axisangle(R_err)
+        root_acc_target[3:6] += 500 *axis*angle_error
+        self.root_acc_angle=500 *axis*angle_error
+        print("root_euler",self.root_euler)
+        print("root_acc_target",root_acc_target[3:6])
+        
         root_acc_target[0:3] += self.kp_root_lin * (self.root_pos_target - self.root_pos)
         root_acc_target[0:3] += (self.kd_root_lin * (self.root_lin_vel_target - self.root_lin_vel_rel)) @ \
                                 self.rot_mat_z.T
-        root_acc_target[3:6] += self.kp_root_ang * euler_error
-        root_acc_target[3:6] += self.kd_root_ang * (self.root_ang_vel_target - self.root_ang_vel_rel)
+        # root_acc_target[3:6] += self.kp_root_ang * euler_error #zyx
+        # root_acc_target[3] += self.kp_root_ang[2] * euler_error[2]
+        # root_acc_target[4] += self.kp_root_ang[1] * euler_error[1]
+        # root_acc_target[5] += self.kp_root_ang[0] * euler_error[0]
+        
+        # root_acc_target[3:6] += self.kd_root_ang * (self.root_ang_vel_target - self.root_ang_vel_rel)
 
         gravity = 9.81 * self.total_mass
         root_acc_target[2] += gravity
@@ -692,8 +606,8 @@ class QuadrupedController:
         inv_inertia_mat = np.zeros([6, 12])
         inv_inertia_mat[0:3, :] = np.tile(np.eye(3), 4)
         for i in range(4):
-            inv_inertia_mat[3:6, i * 3: i * 3 + 3] = self.rot_mat_z.T @ skew(self.foot_pos_abs[i, :] - self.com_offset)
-
+            # inv_inertia_mat[3:6, i * 3: i * 3 + 3] = self.rot_mat_z.T @ skew(self.foot_pos_abs[i, :] - self.com_offset)
+            inv_inertia_mat[3:6, i * 3: i * 3 + 3] = skew(self.foot_pos_abs[i, :] - self.com_offset)
         acc_weight = np.array([1.0, 1.0, 1.0, 10.0, 10.0, 10.0])
         grf_weight = 1e-3
         grf_diff_weight = 1e-2
@@ -740,6 +654,18 @@ class QuadrupedController:
     def setTotalBodyMass(self,total_mass):
         self.total_mass=total_mass
 
+def rot2axisangle(rotm):
+    ZERO=0.000000001
+    r=R.from_matrix(rotm)
+    rot_vec=r.as_rotvec()
+    norm=np.linalg.norm(rot_vec)
+    if norm<ZERO:
+        axis=np.array([0 ,0 ,1])
+        angle=0
+    else: 
+        axis=rot_vec/norm
+        angle=norm
+    return axis,angle
 
 def skew(v):
     return np.array([[0, -v[2], v[1]],

@@ -10,6 +10,7 @@ from ros_pub import BodyInfoPub
 import rospy
 from scipy.spatial.transform import Rotation as R
 from quadruped_controller import QuadrupedController
+from ros_pub import RosPublisher
 
 
 class State:
@@ -79,6 +80,7 @@ class MujocoSimulator:
         self.jStatePub = JointInfoPub("joint_state")
         self.jCommandPub = JointInfoPub("joint_cmd")
         self.bdInfo = BodyInfoPub("body_cheater_state")
+        self.testinfo= RosPublisher("test_info")
 
     def publish2ros(self):
         while (True):
@@ -107,6 +109,14 @@ class MujocoSimulator:
             q[3:6] = [rpy[2], rpy[1], rpy[0]]
             self.bdInfo.appendData(q, v, mujoco_time)
             self.bdInfo.publishData()
+            #test info
+            for i in range(3): #0-2euler z yx 
+                self.testinfo.appendData(self.ctrl.root_euler[i])
+            for i in range(3): #3-5euler target
+                self.testinfo.appendData(self.ctrl.root_euler_target[i])
+            for i in range(3): #6-8 root_acc_angle
+                self.testinfo.appendData(self.ctrl.root_acc_angle[i])
+            self.testinfo.publishData()
             # sleep
             end = time.time()
             while (end - begin < 0.001):
