@@ -82,3 +82,24 @@ ERROR: Python exception raised
 Tue May 30 15:54:42 2023
 ERROR: Python exception raised
 
+Wed May 31 11:11:07 2023
+ERROR: Python exception raised
+
+Wed May 31 11:32:50 2023
+ERROR: Python exception raised
+
+Wed May 31 15:49:37 2023
+ERROR: Python exception raised
+
+Thu Jun  1 10:30:23 2023
+WARNING: mju_openResource: unknown file 'prototype_model/scene_130v1.xml'
+
+Thu Jun  1 10:49:52 2023
+ERROR: Python exception raised
+
+Thu Jun  1 13:57:36 2023
+ERROR: Python exception raised
+
+Thu Jun  1 14:37:43 2023
+WARNING: mju_openResource: unknown file 'prototype_model/model_130v1.xml'
+

@@ -1,0 +1,141 @@
+
+<mujoco model="prototype_model"> <!-- model 1 data20230527 -->
+  <compiler angle="radian" assetdir="assets" texturedir="assets" discardvisual="false" autolimits="true" eulerseq="zyx"/>
+  <option timestep="0.001"  tolerance="0.0000000001" impratio="1" noslip_iterations="10000"/>
+
+  <visual >
+    <rgba contactpoint="0.1 0.8 0.2 1" contactforce="0.7 0.9 0.9 1"/>
+    <scale forcewidth="0.04" contactwidth="0.15" contactheight="0.01"/>
+  </visual>
+
+  <default>
+    <default class="quadruped">
+      <geom friction="0.8" margin="0.001"/>
+      <default class="collision">
+        <geom group="2"/>
+        <default class="load">
+          <geom type="cylinder" size="0.3 0.04" mass="24" pos="0 0 0.15" quat="1 0 0 0"/>
+        </default>
+        <default class="abad">
+          <geom type="cylinder" size="0.04 0.06" mass="1.1"  quat="1 1 0 0"/>
+        </default>
+        <default class="thigh">
+          <geom type="capsule" size="0.025" fromto="0 0 0 0 0 -0.35" mass="1.0"/>
+        </default>
+        <default class="calf">
+          <geom type="capsule" size="0.025" fromto="0 0 0 0 0 -0.45" mass="0.68"/>
+        </default>
+        <default class="foot">
+          <geom type="sphere" size="0.035" pos="0 0 -0.45" mass="0.0001" priority="1" solimp="0.015 1 0.031"
+              condim="6" friction="0.8 0.02 0.01"/>
+        </default>
+        <default class="foot_site">
+          <site size="0.035" pos="0 0 -0.45"/>
+        </default>
+      </default>
+    </default>
+  </default>
+
+  <asset>
+    <texture type="2d" name="trunk" file="texture.png"/>
+    <material name="eame_color" texture="trunk" specular="1" shininess="0.25"/>
+  </asset>
+  
+  <worldbody>
+    <light name="spotlight" mode="targetbodycom" target="trunk_link" pos="0 -1 2"/>
+    <body name="trunk_link" pos="0 0 0.9">
+      <geom class="collision" mass="70.08" group="2" pos="0 0 0.0" size="0.3 0.15 0.08" type="box"/>
+      <geom class="load"/>
+      <site name="imu" size="0.01" pos="0 0 0"/>
+      <freejoint/>
+      <body name="FR_abad" pos="0.4 -0.086 0">
+        <joint name="FR_abad_joint" pos="-0.0765 0 0" axis="1 0 0" range="-0.802851 0.802851" damping="0.5"/>
+        <geom class="abad" group="2" pos="0 -0.04 0"/>
+        <body name="FR_thigh" pos="0 -0.127 0">
+          <geom class="thigh" group="2"/>
+          <joint name="FR_hip_joint" pos="0 0.05 0" axis="0 -1 0" range="-4.18879 1.0472" damping="0.5"/>
+          <body name="FR_calf" pos="0 0 -0.35">
+            <joint name="FR_calf_joint" pos="0 0 0" axis="0 -1 0" range="0.1 3" damping="0.5"/>
+            <geom class="calf" group="2"/>
+            <geom class="foot"/>
+            <site class="foot_site" name="fr_site"/>
+          </body>
+        </body>
+      </body>
+      <body name="FL_abad" pos="0.4 0.086 0">
+        <joint name="FL_abad_joint" pos="-0.0765 0 0" axis="1 0 0" range="-0.802851 0.802851" damping="0.5"/>
+        <geom class="abad" group="2"  pos="0 0.04 0"/>
+        <body name="FL_thigh" pos="0 0.127 0">
+          <joint name="FL_hip_joint" pos="0 -0.05 0" axis="0 -1 0" range="-4.18879 1.0472" damping="0.5"/>
+          <geom class="thigh" group="2"/>
+          <body name="FL_calf" pos="0 0 -0.35">
+            <joint name="FL_calf_joint" pos="0 0 0" axis="0 -1 0" range="0.1 3" damping="0.5"/>
+            <geom class="calf" group="2"/>
+            <geom class="foot"/>
+            <site class="foot_site" name="fl_site"/>
+          </body>
+        </body>
+      </body>
+      <body name="RR_abad" pos="-0.4 -0.086 0">
+       <joint name="RR_abad_joint" pos="0.0765 0 0" axis="1 0 0" range="-0.802851 0.802851" damping="0.5"/>
+       <geom class="abad" group="2" pos="0 -0.04 0"/>
+       <body name="RR_thigh" pos="0 -0.127 0">
+        <geom class="thigh" group="2"/>
+        <joint name="RR_hip_joint" pos="0 0.05 0" axis="0 -1 0" range="-4.18879 1.0472" damping="0.5"/>
+        <body name="RR_calf" pos="0 0 -0.35">
+          <joint name="RR_calf_joint" pos="0 0 0" axis="0 -1 0" range="0.916297857 2.6965336943312392" damping="0.5"/>
+          <geom class="calf" group="2"/>
+          <geom class="foot"/>
+          <site class="foot_site" name="rr_site"/>
+        </body>
+       </body>
+      </body>
+    <body name="RL_abad" pos="-0.4 0.086 0">
+      <geom class="abad"  group="2"  pos="0 0.04 0"/>
+      <joint name="RL_abad_joint" pos="0.0765 0 0" axis="1 0 0" range="-0.802851 0.802851" damping="0.5"/>
+      <body name="RL_thigh" pos="0 0.127 0">
+        <geom class="thigh" group="2"/>
+        <joint name="RL_hip_joint" pos="0 -0.05 0" axis="0 -1 0" range="-4.18879 1.0472" damping="0.5"/>
+        <body name="RL_calf" pos="0 0 -0.35">
+          <joint name="RL_calf_joint" pos="0 0 0" axis="0 -1 0" range="0.916297857 2.6965336943312392" damping="0.5"/>
+          <geom class="calf" group="2"/>
+          <geom class="foot"/>
+          <site class="foot_site" name="rl_site"/>
+        </body>
+      </body>
+    </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor name="FR_abad_tau" joint="FR_abad_joint" forcerange="-1000 1000"/>
+    <motor name="FR_hip_tau" joint="FR_hip_joint" forcerange="-1000 1000"/>
+    <motor name="FR_knee_tau" joint="FR_calf_joint" forcerange="-1000 1000"/>
+    <motor name="FL_abad_tau" joint="FL_abad_joint" forcerange="-1000 1000"/>
+    <motor name="FL_hip_tau" joint="FL_hip_joint" forcerange="-1000 1000"/>
+    <motor name="FL_knee_tau" joint="FL_calf_joint" forcerange="-1000 1000"/>
+    <motor name="RR_abad_tau" joint="RR_abad_joint" forcerange="-1000 1000"/>
+    <motor name="RR_hip_tau" joint="RR_hip_joint" forcerange="-1000 1000"/>
+    <motor name="RR_knee_tau" joint="RR_calf_joint" forcerange="-1000 1000"/>
+    <motor name="RL_abad_tau" joint="RL_abad_joint" forcerange="-1000 1000"/>
+    <motor name="RL_hip_tau" joint="RL_hip_joint" forcerange="-1000 1000"/>
+    <motor name="RL_knee_tau" joint="RL_calf_joint" forcerange="-1000 1000"/>
+  </actuator>
+  <sensor>
+    <framequat     name="imu_quat" objtype="site" objname="imu"/>
+    <gyro          name="imu_omega"    site="imu" noise="5e-4" cutoff="34.9"/>
+    <accelerometer name="imu_acc" site="imu" noise="1e-2" cutoff="157"/>
+    <framepos name="fr_foot" objtype="site" objname="fr_site" reftype="site" refname="imu"/>
+    <framepos name="fl_foot" objtype="site" objname="fl_site" reftype="site" refname="imu"/>
+    <framepos name="rr_foot" objtype="site" objname="rr_site" reftype="site" refname="imu"/>
+    <framepos name="rl_foot" objtype="site" objname="rl_site" reftype="site" refname="imu"/>
+    <touch name="fr_touch" site="fr_site"/>
+    <touch name="fl_touch" site="fl_site"/>
+    <touch name="rr_touch" site="rr_site"/>
+    <touch name="rl_touch" site="rl_site"/>
+  </sensor>
+  <keyframe>
+    <key name="home" qpos="0 0 0.5 1 0 0 0 0 -0.6 1.2 0 -0.6 1.2 0 -0.6 1.2 0 -0.6 1.2"/>
+  </keyframe>
+
+</mujoco>

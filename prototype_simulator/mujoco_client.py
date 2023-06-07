@@ -110,12 +110,12 @@ class MujocoSimulator:
             self.bdInfo.appendData(q, v, mujoco_time)
             self.bdInfo.publishData()
             #test info
-            for i in range(3): #0-2euler z yx 
-                self.testinfo.appendData(self.ctrl.root_euler[i])
-            for i in range(3): #3-5euler target
-                self.testinfo.appendData(self.ctrl.root_euler_target[i])
-            for i in range(3): #6-8 root_acc_angle
-                self.testinfo.appendData(self.ctrl.root_acc_angle[i])
+            for i in range(4): #0-3contact force
+                self.testinfo.appendData(self.state.contact_force[i])
+            # for i in range(3): #3-5euler target
+            #     self.testinfo.appendData(self.ctrl.root_euler_target[i])
+            # for i in range(3): #6-8 root_acc_angle
+            #     self.testinfo.appendData(self.ctrl.root_acc_angle[i])
             self.testinfo.publishData()
             # sleep
             end = time.time()
@@ -232,12 +232,12 @@ class MujocoSimulator:
         glfw.set_cursor_pos_callback(self.window, self.mouse_move)
         glfw.set_mouse_button_callback(self.window, self.mouse_button)
         glfw.set_scroll_callback(self.window, self.mouse_scroll)
-        # mj.set_mjcb_control(self.controller)
+        mj.set_mjcb_control(self.controller)
         # mj.mj_forward(self.model, self.data)
         while not glfw.window_should_close(self.window):
             time_prev = self.data.time
             while self.data.time-time_prev<1.0/60.0:
-                self.controller(self.model,self.data)
+                # self.controller(self.model,self.data)
                 mj.mj_step(self.model, self.data)
 
             viewport_width, viewport_height = glfw.get_framebuffer_size(
@@ -303,19 +303,19 @@ class MujocoSimulator:
             self.gamepad_cmd.vel_cmd=[0]*3
             self.gamepad_cmd.omega_cmd=[0]*3
         if act == glfw.PRESS and key == glfw.KEY_UP:
-            self.gamepad_cmd.vel_cmd[0]+=0.2
+            self.gamepad_cmd.vel_cmd[0]+=0.1
             self.gamepad_cmd.omega_cmd[2]=0
         if act == glfw.PRESS and key == glfw.KEY_DOWN:
-            self.gamepad_cmd.vel_cmd[0]-=0.2
+            self.gamepad_cmd.vel_cmd[0]-=0.1
             self.gamepad_cmd.omega_cmd[2]=0
         if act == glfw.PRESS and key == glfw.KEY_LEFT:
             self.gamepad_cmd.omega_cmd[2]+=0.3
         if act == glfw.PRESS and key == glfw.KEY_RIGHT:
             self.gamepad_cmd.omega_cmd[2]-=0.3
         if act==glfw.PRESS and key==glfw.KEY_W:
-            self.gamepad_cmd.body_height+=0.05
+            self.gamepad_cmd.body_height+=0.02
         if act==glfw.PRESS and key==glfw.KEY_S:
-            self.gamepad_cmd.body_height-=0.05
+            self.gamepad_cmd.body_height-=0.02
         if act==glfw.PRESS and key==glfw.KEY_0:
             self.gamepad_cmd.gait_type=0
         if act==glfw.PRESS and key==glfw.KEY_1:
@@ -364,7 +364,7 @@ class MujocoSimulator:
 
 
 if __name__ == '__main__':
-    model_xml = "prototype_model/scene_130.xml"
+    model_xml = "prototype_model/scene_105V1.xml"
     sim = MujocoSimulator(model_xml)
     sim.initSimulator()
     sim.initController()

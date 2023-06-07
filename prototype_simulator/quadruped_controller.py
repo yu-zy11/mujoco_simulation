@@ -60,14 +60,15 @@ class QuadrupedController:
         self.counter = 0
         # quick stop
         self.quick_stop_=False
-        self.body_height=0.52
+        self.body_height=0.54
         self.body_width=0.44
         self.body_length=0.8
-        self.gait_period=0.4
-        self.hip_position=np.array([[+self.body_length/2, -self.body_width/2, 0], #v1
-                             [+self.body_length/2, self.body_width/2, 0],
-                             [-self.body_length/2, -self.body_width/2, 0],
-                             [-self.body_length/2, self.body_width/2, 0]])
+        self.gait_period=0.5
+        delta_y=0.00
+        self.hip_position=np.array([[+self.body_length/2, -self.body_width/2+delta_y, 0], #v1
+                             [+self.body_length/2, self.body_width/2-delta_y, 0],
+                             [-self.body_length/2, -self.body_width/2+delta_y, 0],
+                             [-self.body_length/2, self.body_width/2-delta_y, 0]])
         self.root_pos_des_rel=np.zeros(3)
         self.root_pos_des_abs=np.zeros(3)
         self.root_acc_quick_stop=np.zeros(3)
@@ -170,6 +171,7 @@ class QuadrupedController:
         # command
         self.qp = QP()
         self.torque = np.zeros(12)
+        
         self.default_foot_pos = np.array([[+self.body_length/2, -self.body_width/2, -self.body_height], #v1
                              [+self.body_length/2, self.body_width/2, -self.body_height],
                              [-self.body_length/2, -self.body_width/2, -self.body_height],
@@ -286,6 +288,7 @@ class QuadrupedController:
         self.gamepad_cmd=cmd
         if self.use_joy:
             self.root_lin_vel_target[0] = cmd.vel_cmd[0]
+            self.root_lin_vel_target[1] = cmd.vel_cmd[1]
             self.root_ang_vel_target[2] = cmd.omega_cmd[2]
             if cmd.gait_type <= 3:
                 if self.default_root_state[2] + cmd.body_height < self.gait_stop_height:
@@ -437,7 +440,7 @@ class QuadrupedController:
             delta_foot_rel=np.array([delta_foot_x,delta_foot_y,0])
             delta_foot_world=self.rot_mat@delta_foot_rel
             foot_position_world=hip_position_world+delta_foot_world
-            foot_height=self.getPlanePointZ(self.terrain_coef,foot_position_world[0],foot_position_world[1])
+            foot_height=self.getPlanePointZ(self.terrain_coef,foot_position_world[0],foot_position_world[1])-0.02
             foot_position_world[2]=foot_height
             self.foot_pos_world_target[leg]=foot_position_world.copy()
             self.foot_pos_abs_target[leg]=self.foot_pos_world_target[leg]- self.root_pos
@@ -582,8 +585,8 @@ class QuadrupedController:
         axis,angle_error=rot2axisangle(R_err)
         root_acc_target[3:6] += self.kp_root_ang *axis*angle_error
         self.root_acc_angle=self.kp_root_ang *axis*angle_error
-        print("root_euler",self.root_euler)
-        print("root_acc_target",root_acc_target[3:6])
+        # print("root_euler",self.root_euler)
+        # print("root_acc_target",root_acc_target[3:6])
         
         root_acc_target[0:3] += self.kp_root_lin * (self.root_pos_target - self.root_pos)
         root_acc_target[0:3] += (self.kd_root_lin * (self.root_lin_vel_target - self.root_lin_vel_rel)) @ \
@@ -655,7 +658,7 @@ class QuadrupedController:
                                  foot_pos_final[i, 2],
                                  foot_pos_final[i, 2]])
             bezier_z[1] += 0.0
-            bezier_z[2] += np.minimum(0.4, 3 * (self.default_root_state[2] + self.joy_value[2] - self.gait_stop_height))
+            bezier_z[2] += np.minimum(0.4, 3 * (self.default_root_state[2]  - self.gait_stop_height))
             foot_pos_target[i, 2] = bezier_curve(bezier_time[i], bezier_z)
 
         return foot_pos_target
