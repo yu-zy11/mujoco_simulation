@@ -103,3 +103,12 @@ ERROR: Python exception raised
 Thu Jun  1 14:37:43 2023
 WARNING: mju_openResource: unknown file 'prototype_model/model_130v1.xml'
 
+Mon Jun 12 09:24:58 2023
+WARNING: mju_openResource: unknown file 'prototype_model/model_130v1.xml'
+
+Mon Jun 12 11:15:52 2023
+ERROR: Python exception raised
+
+Mon Jun 12 11:22:52 2023
+ERROR: Python exception raised
+

@@ -60,10 +60,10 @@ class QuadrupedController:
         self.counter = 0
         # quick stop
         self.quick_stop_=False
-        self.body_height=0.54
+        self.body_height=0.64
         self.body_width=0.44
         self.body_length=0.8
-        self.gait_period=0.5
+        self.gait_period=0.58
         delta_y=0.00
         self.hip_position=np.array([[+self.body_length/2, -self.body_width/2+delta_y, 0], #v1
                              [+self.body_length/2, self.body_width/2-delta_y, 0],
@@ -133,7 +133,7 @@ class QuadrupedController:
         # user
         self.gait_type = 0  # stand: 0, walk: 1, trot: 2, pace: 3
         self.gait_type_last = 0
-        self.gait_stop_height = 0.15
+        self.gait_stop_height = 0.10
         self.use_joy = True
         self.root_pos_target = np.zeros(3)
         self.root_euler_target = np.zeros(3)
@@ -658,7 +658,7 @@ class QuadrupedController:
                                  foot_pos_final[i, 2],
                                  foot_pos_final[i, 2]])
             bezier_z[1] += 0.0
-            bezier_z[2] += np.minimum(0.4, 3 * (self.default_root_state[2]  - self.gait_stop_height))
+            bezier_z[2] += np.minimum(0.6, 3 * (self.default_root_state[2]  - self.gait_stop_height))
             foot_pos_target[i, 2] = bezier_curve(bezier_time[i], bezier_z)
 
         return foot_pos_target

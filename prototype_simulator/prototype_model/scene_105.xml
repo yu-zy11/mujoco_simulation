@@ -1,7 +1,7 @@
 <mujoco model="robot scene">
 
-  <include file="model_130v1.xml"/>
-
+  <include file="model_105.xml"/>
+  <include file="stairs175_200.xml"/>
   <statistic center="0 0 0.1" extent="0.8"/>
 
   <visual>
@@ -22,7 +22,7 @@
   <worldbody>
     <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>  
-    <!-- <geom name="inclined_plane" size="0 0 0.05" pos="5 0 0" euler="0 -0.2094 0" type="plane" material="groundplane"/>  -->
+    <geom name="inclined_plane" size="0 0 0.05" pos="3 0 0" euler="0 -0.2094 0" type="plane" material="groundplane"/> 
   </worldbody>
 
 </mujoco>

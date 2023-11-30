@@ -14,7 +14,7 @@
       <default class="collision">
         <geom group="2"/>
         <default class="load">
-          <geom type="cylinder" size="0.3 0.04" mass="24" pos="0 0 0.15" quat="1 0 0 0"/>
+          <geom type="cylinder" size="0.15 0.04" mass="24" pos="0 0 0.15" quat="1 0 0 0"/>
         </default>
         <default class="abad">
           <geom type="cylinder" size="0.04 0.06" mass="1.1"  quat="1 1 0 0"/>

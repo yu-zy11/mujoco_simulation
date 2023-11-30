@@ -307,8 +307,11 @@ class MujocoSimulator:
 # abspath = os.path.join(dirname + "/" + xml_path)
 # xml_path = abspath
 if __name__ == '__main__':
-    model_xml = "/home/yu/workspace/python_work/model/unitree_a1/scene.xml"
-    model_xml = "/home/yu/workspace/python_work/model/eame3_mujoco/scene.xml"
+    dirname = os.path.dirname(__file__)
+    abspath = os.path.join(dirname + "/" + "prototype_simulator/prototype_model/scene.xml")
+    model_xml = abspath
+    # model_xml = "/home/yu/workspace/python_work/model/unitree_a1/scene.xml"
+    # model_xml = "/home/yu/workspace/python_work/model/eame3_mujoco/scene.xml"
     sim = MujocoSimulator(model_xml)
     sim.initSimulator()
     sim.runSimulation()

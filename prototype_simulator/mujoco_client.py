@@ -112,6 +112,8 @@ class MujocoSimulator:
             #test info
             for i in range(4): #0-3contact force
                 self.testinfo.appendData(self.state.contact_force[i])
+            for i in range(4): #0-3foot pos
+                self.testinfo.appendData(self.state.foot_pos_in_body[2,i])   
             # for i in range(3): #3-5euler target
             #     self.testinfo.appendData(self.ctrl.root_euler_target[i])
             # for i in range(3): #6-8 root_acc_angle
@@ -364,7 +366,10 @@ class MujocoSimulator:
 
 
 if __name__ == '__main__':
-    model_xml = "prototype_model/scene_105V1.xml"
+    model_xml = "prototype_model/scene_105.xml"
+    dirname = os.path.dirname(__file__)
+    abspath = os.path.join(dirname  + "/prototype_model/scene.xml")
+    model_xml = abspath
     sim = MujocoSimulator(model_xml)
     sim.initSimulator()
     sim.initController()

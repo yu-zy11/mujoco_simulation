@@ -1,0 +1,6 @@
+Thu Nov 23 14:44:40 2023
+WARNING: mju_openResource: unknown file '/home/yu/workspace/python_work/model/eame3_mujoco/scene.xml'
+
+Thu Nov 23 14:53:27 2023
+WARNING: Nan, Inf or huge value in CTRL at ACTUATOR 4. The simulation is unstable. Time = 4.0530.
+
